@@ -1,0 +1,11 @@
+DADOS INICIAIS:
+8 conexoes em paralelo 
+1.75Gb utilizados de memoria
+
+ESCRITA:
+2000 dados escritos em 0,362 s 
+5524,862 requisicoes/segundo 
+
+LEITURA:
+2000 dados lidos em 0,247 s 
+8097,166 requisicoes/segundo 
