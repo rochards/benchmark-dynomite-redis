@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.rochards.clients.Client;
 import com.rochards.keys.Key;
 
 import redis.clients.jedis.Jedis;
@@ -32,11 +33,19 @@ public class App {
 		final String field = "f$)\\\"<\\\"|9M!  ~&5d'?j\\\"V\\x7f\\\"2.&7&!>z?S!-V5&I%96j8,>$C9 1v/La0/644f'?t6K}()(1$r=::$]-'3(8-t7]%5A}0Oo'0>!F18";
 
 		Key key = new Key("key", field, 5);
-		Jedis jedis = null;
+		//Jedis jedis = null;
+		Client client;
+		
+		// create threads
+		for (int i = 0; i < clients; i++) {
+			new Client(i, key, (int)(requests/clients), i * (int)(requests/clients) - i, hostname, port);
+		}
+		
+		
+		/*try {
+			
 
-		try {
-
-			jedis = new Jedis(hostname, port);
+			//jedis = new Jedis(hostname, port);
 
 			writeStartTime = System.currentTimeMillis();
 			for (int i = 0; i < requests; i++) {
@@ -56,15 +65,17 @@ public class App {
 			readEndTime = System.currentTimeMillis();
 			readTime = (readEndTime - readStartTime) / 1000.0; // millis to seconds
 
-			jedis.close();
+			Jedis jedis = new Jedis(hostname, port);
 
 			printStatistics(clients, jedis.info("Memory"), requests, writeTime, readTime);
 			printStatisticsToFile(clients, jedis.info("Memory"), requests, writeTime, readTime);
 			//System.out.println();
+			
+			jedis.close();
 
 		} catch (JedisConnectionException jce) {
 			System.out.println(jce.getMessage());
-		}
+		}*/
 	}
 
 	public static void printStatistics(int clients, String memoryInfo, int requests, double writeTime,
