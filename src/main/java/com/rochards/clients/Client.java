@@ -49,10 +49,8 @@ public class Client implements Runnable {
 	public void run() {
 		
 		jedis = new Jedis(hostname, port);
-		
 		hset();
 		randomKey();
-		
 		jedis.close();
 	}
 	
@@ -69,7 +67,7 @@ public class Client implements Runnable {
 		}
 		endTime = System.currentTimeMillis();
 		
-		timer.writeTime(endTime - startTime);
+		timer.writeTime((endTime - startTime) / 1000.0);
 	}
 	
 	private void randomKey() {
@@ -83,7 +81,7 @@ public class Client implements Runnable {
 		}
 		endTime = System.currentTimeMillis();
 		
-		timer.readTime(endTime - startTime);
+		timer.readTime((endTime - startTime) / 1000.0);
 	}
 
 }
