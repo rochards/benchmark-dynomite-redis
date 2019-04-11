@@ -11,13 +11,19 @@ public class Timer {
 		this.readTime = 0;
 	}
 	
-	public synchronized double writeTime(double writeTime) {
+	public synchronized void writeTime(long writeTime) {
 		this.writeTime += writeTime;
-		return this.writeTime;
 	}
 	
-	public synchronized double readTime(double readTime) {
+	public synchronized void readTime(long readTime) {
 		this.readTime += readTime;
-		return this.readTime;
+	}
+	
+	public double getWriteTime() {
+		return this.writeTime / 1000.0; // to seconds
+	}
+	
+	public double getReadTime() {
+		return this.readTime / 1000.0; // to seconds
 	}
 }

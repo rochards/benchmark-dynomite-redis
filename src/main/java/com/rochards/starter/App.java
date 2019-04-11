@@ -3,83 +3,72 @@ package com.rochards.starter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.Timestamp;
-import java.util.Date;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.rochards.clients.Client;
 import com.rochards.keys.Key;
 
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.exceptions.JedisConnectionException;
 
 public class App {
 	public static void main(String[] args) {
 
-		String hostname = "127.0.0.1"; // Server hostname
-		int port = 6379; // Server port
-		int clients = 8; // Number of parallel connections
-		int requests = 2000000; // Total number of requests
-
-		long writeStartTime = 0; // millis
-		long writeEndTime = 0; // millis
-		double writeTime = 0; // seconds
-		long readStartTime = 0; // millis
-		long readEndTime = 0; // millis
-		double readTime = 0; // seconds
-
+		final Logger log = LoggerFactory.getLogger(App.class);
+		
+		String hostname = "127.0.0.1"; // server hostname
+		int port = 6379; // server port
+		int clients = 1000; // number of parallel connections
+		int requests = 10000; // total number of requests == number of keys saved
+		double writesPerSeconds = 0; 
+		double readsPerSeconds = 0;
 		final String field = "f$)\\\"<\\\"|9M!  ~&5d'?j\\\"V\\x7f\\\"2.&7&!>z?S!-V5&I%96j8,>$C9 1v/La0/644f'?t6K}()(1$r=::$]-'3(8-t7]%5A}0Oo'0>!F18";
-
+		
 		Key key = new Key("key", field, 5);
-		//Jedis jedis = null;
-		Client client;
+		Client [] client = new Client[clients];
+		Thread [] thread = new Thread[clients];
 		
 		// create threads
 		for (int i = 0; i < clients; i++) {
-			new Client(i, key, (int)(requests/clients), i * (int)(requests/clients) - i, hostname, port);
+			
+			client[i] =  new Client(i, key, (int)(requests/clients), (int)(i * requests/clients), hostname, port);
+			
+			thread[i] = new Thread(client[i]);
+			thread[i].start();
 		}
 		
+		// when we invoke the join() method on a thread, the calling thread goes into a waiting state.
+		for (int i = 0; i < clients; i++) {
+			try {
+				thread[i].join();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+				log.info(e.getMessage());
+			}
+		}
 		
-		/*try {
+		// get requests/seconds
+		for (int i = 0; i < clients; i++) {
 			
+			writesPerSeconds += client[i].getWritesPerSeconds();
+			readsPerSeconds += client[i].getReadsPerSeconds();
+		}
+		
+		Jedis jedis = new Jedis(hostname, port); // open connection
 
-			//jedis = new Jedis(hostname, port);
-
-			writeStartTime = System.currentTimeMillis();
-			for (int i = 0; i < requests; i++) {
-				
-				for (Map.Entry<String, String> entry : key.getFields().entrySet()) {
-					jedis.hset(key.getName() + i, entry.getKey(), entry.getValue());
-				}
-			}
-			writeEndTime = System.currentTimeMillis();
-			writeTime = (writeEndTime - writeStartTime) / 1000.0;
-
-			readStartTime = System.currentTimeMillis();
-			for (int i = 0; i < requests; i++) {
-				//Map<String, String> value = jedis.hgetAll(jedis.randomKey());
-				String randomKey = jedis.randomKey();
-			}
-			readEndTime = System.currentTimeMillis();
-			readTime = (readEndTime - readStartTime) / 1000.0; // millis to seconds
-
-			Jedis jedis = new Jedis(hostname, port);
-
-			printStatistics(clients, jedis.info("Memory"), requests, writeTime, readTime);
-			printStatisticsToFile(clients, jedis.info("Memory"), requests, writeTime, readTime);
-			//System.out.println();
-			
-			jedis.close();
-
-		} catch (JedisConnectionException jce) {
-			System.out.println(jce.getMessage());
-		}*/
+		printStatistics(clients, jedis.info("Memory"), requests, writesPerSeconds, readsPerSeconds);
+		
+		jedis.close();
+		
+		
+		log.info("done");
 	}
 
-	public static void printStatistics(int clients, String memoryInfo, int requests, double writeTime,
-			double readTime) {
+	public static void printStatistics(int clients, String memoryInfo, int requests, double writesPerSeconds,
+			double readsPerSeconds) {
 
 		Pattern pattern = Pattern.compile("(?<=used_memory_human:)(.*)(?=)");
 		Matcher matcher = pattern.matcher(memoryInfo);
@@ -88,15 +77,15 @@ public class App {
 			memoryInfo = matcher.group(1);
 		}
 
-		System.out.printf("DADOS INICIAIS:%n");
-		System.out.printf("%d conexoes em paralelo %n", clients);
-		System.out.printf("%sb utilizados de memoria%n%n", memoryInfo);
-		System.out.printf("ESCRITA:%n");
-		System.out.printf("%d dados escritos em %.3f s %n", requests, writeTime);
-		System.out.printf("%.3f requisicoes/segundo %n%n", requests / writeTime);
-		System.out.println("LEITURA:");
-		System.out.printf("%d dados lidos em %.3f s %n", requests, readTime);
-		System.out.printf("%.3f requisicoes/segundo %n", requests / readTime);
+		System.out.printf("INFO:%n");
+		System.out.printf("%d parallel clients %n", clients);
+		System.out.printf("%sb used memory%n%n", memoryInfo);
+		System.out.printf("WRITE:%n");
+		System.out.printf("%d requests in %.3f sec %n", requests, requests / writesPerSeconds);
+		System.out.printf("%.3f requests/sec %n%n", writesPerSeconds);
+		System.out.printf("READ:%n");
+		System.out.printf("%d requests in %.3f sec %n", requests, requests / readsPerSeconds);
+		System.out.printf("%.3f requests/sec %n", readsPerSeconds);
 	}
 	
 	public static void printStatisticsToFile(int clients, String memoryInfo, int requests, double writeTime,

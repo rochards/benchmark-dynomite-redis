@@ -2,10 +2,13 @@ package com.rochards.clients;
 
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.rochards.keys.Key;
-import com.rochards.statistics.Timer;
 
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.exceptions.JedisConnectionException;
 
 public class Client implements Runnable {
 
@@ -15,23 +18,31 @@ public class Client implements Runnable {
 	private int keyStart;
 	private String hostname;
 	private int port;
+	private long writeTime;
+	private long readTime;
 	private Jedis jedis;
-	private static Timer timer;
 	
+	private final Logger log = LoggerFactory.getLogger(Client.class);
+	
+	/**
+	   * Create a instance of Client
+	   * @param id This is the identifier of client
+	   * @param key  This is a Key object
+	   * @param requests This is the total number of requests this client do
+	   */
 	public Client(int id, Key key, int requests) {
-		
-		this.id = id;
-		this.key = key;
-		this.requests = requests;
-		this.keyStart = 0;
-		this.hostname = "127.0.0.1";
-		this.port = 6379;
-		
-		timer = new Timer();
-		
-		new Thread(this).start();
+		this(id, key, requests, 0, "127.0.0.1", 6379);
 	}
 	
+	/**
+	   * Create a instance of Client
+	   * @param id This is the identifier of client
+	   * @param key  This is a Key object
+	   * @param requests This is the total number of requests that this client do
+	   * @param keyStart This is the initial key to start record
+	   * @param hostname This is the Server hostname (default 127.0.0.1)
+	   * @param port This is the Server port (default 6379)
+	   */
 	public Client(int id, Key key, int requests, int keyStart, String hostname, int port) {
 		
 		this.id = id;
@@ -40,18 +51,29 @@ public class Client implements Runnable {
 		this.keyStart = keyStart;
 		this.hostname = hostname;
 		this.port = port;
-		
-		timer = new Timer();
-		
-		new Thread(this).start();
+		this.writeTime = 0;
+		this.readTime = 0;
 	}
 	
+	@Override
 	public void run() {
+		try {
+			
+			jedis = new Jedis(hostname, port); // open connection
+			
+			log.info("Client " + this.id + " started write");
+			this.hset();
 		
-		jedis = new Jedis(hostname, port);
-		hset();
-		randomKey();
-		jedis.close();
+			log.info("Client " + this.id + " started read");	
+			this.randomKey();
+			
+			jedis.close(); // close connection
+			
+			log.info("Client " + this.id + " done");
+			
+		} catch (JedisConnectionException jce) {
+			log.info(jce.getMessage());
+		}
 	}
 	
 	private void hset() {
@@ -62,12 +84,12 @@ public class Client implements Runnable {
 		startTime = System.currentTimeMillis();
 		for (int i = keyStart; i < keyStart + requests; i++) {
 			for (Map.Entry<String, String> entry : key.getFields().entrySet()) {
-				jedis.hset(key.getName(), entry.getKey(), entry.getValue());
+				jedis.hset(key.getName() + i, entry.getKey(), entry.getValue());
 			}
 		}
 		endTime = System.currentTimeMillis();
 		
-		timer.writeTime((endTime - startTime) / 1000.0);
+		this.writeTime = endTime - startTime;
 	}
 	
 	private void randomKey() {
@@ -81,7 +103,35 @@ public class Client implements Runnable {
 		}
 		endTime = System.currentTimeMillis();
 		
-		timer.readTime((endTime - startTime) / 1000.0);
+		this.readTime = endTime - startTime;
+		log.info("" + this.readTime);
 	}
-
+	
+	/**
+	 * @return write time in milliseconds
+	 * */
+	public long getWriteTime() {
+		return this.writeTime; // millis
+	}
+	
+	/**
+	 * @return read time in milliseconds
+	 * */
+	public long getReadTime() {
+		return this.readTime; // millis
+	}
+	
+	/**
+	 * @return writes/seconds
+	 * */
+	public double getWritesPerSeconds() {
+		return this.requests / (this.writeTime / 1000.0); 
+	}
+	
+	/**
+	 * @return reads/seconds
+	 * */
+	public double getReadsPerSeconds() {
+		return this.requests / (this.readTime / 1000.0);
+	}
 }
