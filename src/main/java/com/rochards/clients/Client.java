@@ -10,16 +10,17 @@ import com.rochards.keys.Key;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 
-public class Client implements Runnable {
+public class Client {
 
 	private int id;
-	private Key key;
 	private int requests;
 	private int keyStart;
 	private String hostname;
 	private int port;
 	private long writeTime;
+	private boolean writeDone;
 	private long readTime;
+	private boolean readDone;
 	private Jedis jedis;
 	
 	private final Logger log = LoggerFactory.getLogger(Client.class);
@@ -30,8 +31,8 @@ public class Client implements Runnable {
 	   * @param key  This is a Key object
 	   * @param requests This is the total number of requests this client do
 	   */
-	public Client(int id, Key key, int requests) {
-		this(id, key, requests, 0, "127.0.0.1", 6379);
+	public Client(int id, int requests) {
+		this(id, requests, 0, "127.0.0.1", 6379);
 	}
 	
 	/**
@@ -43,10 +44,9 @@ public class Client implements Runnable {
 	   * @param hostname This is the Server hostname (default 127.0.0.1)
 	   * @param port This is the Server port (default 6379)
 	   */
-	public Client(int id, Key key, int requests, int keyStart, String hostname, int port) {
+	public Client(int id, int requests, int keyStart, String hostname, int port) {
 		
 		this.id = id;
-		this.key = key;
 		this.requests = requests;
 		this.keyStart = keyStart;
 		this.hostname = hostname;
@@ -55,56 +55,156 @@ public class Client implements Runnable {
 		this.readTime = 0;
 	}
 	
-	@Override
-	public void run() {
-		try {
-			
-			jedis = new Jedis(hostname, port); // open connection
-			
-			log.info("Client " + this.id + " started write");
-			this.hset();
-		
-			log.info("Client " + this.id + " started read");	
-			this.randomKey();
-			
-			jedis.close(); // close connection
-			
-			log.info("Client " + this.id + " done");
-			
-		} catch (JedisConnectionException jce) {
-			log.info(jce.getMessage());
-		}
-	}
+	/**
+	 * write a simple key and value n times you defined in requests for this client. Ex: key(i) => key0 key1 key2 ... keyn
+	 * @param key 
+	 * @param value
+	 * */
+	public void set(String key, String value) {
 	
-	private void hset() {
+		this.writeDone = false;
 		
-		long startTime;
-		long endTime;
-		
-		startTime = System.currentTimeMillis();
-		for (int i = keyStart; i < keyStart + requests; i++) {
-			for (Map.Entry<String, String> entry : key.getFields().entrySet()) {
-				jedis.hset(key.getName() + i, entry.getKey(), entry.getValue());
+		new Thread(()->{
+			try {
+				
+				long startTime;
+				long endTime;
+				
+				jedis = new Jedis(hostname, port); // open connection
+				
+				log.info("Client " + this.id + " started write");
+				
+				startTime = System.currentTimeMillis();
+				for (int i = keyStart; i < keyStart + requests; i++) {
+					jedis.set(key + i, value);
+				}
+				endTime = System.currentTimeMillis();
+				this.writeTime = endTime - startTime;
+				
+				jedis.close(); // close connection
+				
+			} catch (JedisConnectionException jce) {
+				log.info("Client" + this.id + " "  + jce.getMessage());
+			} finally {
+				this.writeDone = true;
 			}
-		}
-		endTime = System.currentTimeMillis();
-		
-		this.writeTime = endTime - startTime;
+		}).start();
 	}
 	
-	private void randomKey() {
+	/**
+	 * Just read a simple key and value. It iterates over all keys. Ex: key(i) => key0 key1 key2 ... keyn
+	 * @param key
+	 * */
+	public void get(String key) {
 		
-		long startTime;
-		long endTime;
+		this.readDone = false;
 		
-		startTime = System.currentTimeMillis();
-		for (int i = 0; i < requests; i++) {
-			String randomKey = jedis.randomKey();
-		}
-		endTime = System.currentTimeMillis();
+		new Thread(()-> {
+			
+			try {
+				
+				long startTime;
+				long endTime;
+				
+				jedis = new Jedis(hostname, port); // open connection
+				
+				log.info("Client " + this.id + " started read");
+				
+				startTime = System.currentTimeMillis();
+				for (int i = keyStart; i < requests + keyStart; i++) {
+					String value = jedis.get(key + i);
+				}
+				endTime = System.currentTimeMillis();
+				this.readTime = endTime - startTime;
+				
+				jedis.close(); // close connection
+				
+			} catch (JedisConnectionException jce) {
+				log.info("Client " + this.id + " "  + jce.getMessage());
+			} finally {
+				this.readDone = true;
+			}
+		}).start();
+	}
+	
+	/**
+	 * write a simple hash key
+	 * @param Key object. Writes this key n times you defined in requests for this client. Ex: key(i) => key0 key1 key2 ... keyn
+	 * */
+	public void hset(Key key) {
 		
-		this.readTime = endTime - startTime;
-		log.info("" + this.readTime);
+		this.writeDone = false;
+		
+		new Thread(()-> {
+			try {
+
+				long startTime;
+				long endTime;
+				
+				jedis = new Jedis(hostname, port); // open connection
+				
+				log.info("Client " + this.id + " started write");
+				
+				startTime = System.currentTimeMillis();
+				for (int i = keyStart; i < keyStart + requests; i++) {
+					for (Map.Entry<String, String> entry : key.getFields().entrySet()) {
+						jedis.hset(key.getName() + i, entry.getKey(), entry.getValue());
+					}
+				}
+				endTime = System.currentTimeMillis();
+				this.writeTime = endTime - startTime;
+				
+				jedis.close(); // close connection
+				
+			} catch (JedisConnectionException jce) {
+				log.info("Client" + this.id + " "  + jce.getMessage());
+			} finally {
+				this.writeDone = true;
+			}
+		}).start();
+	}
+	
+	/**
+	 * Just read a simple hash key. It iterates over all keys. Ex: key(i) => key0 key1 key2 ... keyn
+	 * @param key
+	 * */
+	public void hgetAll(String key) {
+		
+		this.readDone = false;
+		
+		new Thread(()-> {
+			
+			try {
+				
+				long startTime;
+				long endTime;
+				
+				jedis = new Jedis(hostname, port); // open connection
+				
+				log.info("Client " + this.id + " started read");
+				
+				startTime = System.currentTimeMillis();
+				for (int i = keyStart; i < requests + keyStart; i++) {
+					Map<String, String> value = jedis.hgetAll(key + i);
+				}
+				endTime = System.currentTimeMillis();
+				this.readTime = endTime - startTime;
+				
+				jedis.close(); // close connection
+				
+			} catch (JedisConnectionException jce) {
+				log.info("Client" + this.id + " "  + jce.getMessage());
+			} finally {
+				this.readDone = true;
+			}
+		}).start();
+	}
+	
+	/**
+	 * @return id
+	 * */
+	public int getId() {
+		return this.id;
 	}
 	
 	/**
@@ -133,5 +233,19 @@ public class Client implements Runnable {
 	 * */
 	public double getReadsPerSeconds() {
 		return this.requests / (this.readTime / 1000.0);
+	}
+	
+	/**
+	 * @return return true if client has done write
+	 * */
+	public boolean isWriteDone() {
+		return this.writeDone;
+	}
+	
+	/**
+	 * @return return true if client has done read
+	 * */
+	public boolean isReadDone() {
+		return this.readDone;
 	}
 }

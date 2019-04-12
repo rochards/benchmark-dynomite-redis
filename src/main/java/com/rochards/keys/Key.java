@@ -10,6 +10,12 @@ public class Key {
 	private String field;
 	private Map<String, String> fields;
 	
+	/**
+	   * Create a instance of Key
+	   * @param name This is the identifier of key
+	   * @param fields  This the field value
+	   * @param numberOfFields This is the number of fields this rash contains
+	   */
 	public Key(String name, String field, int numberOfFields) {
 		
 		this.name = name;
@@ -19,6 +25,9 @@ public class Key {
 		this.setFields(this.field);
 	}
 	
+	/**
+	 * @return name of this key
+	 * */
 	public String getName() {
 		return this.name;
 	}
@@ -29,6 +38,9 @@ public class Key {
 		}
 	}
 	
+	/**
+	 * @return all fields values
+	 * */
 	public Map<String, String> getFields() {
 		return this.fields;
 	}
