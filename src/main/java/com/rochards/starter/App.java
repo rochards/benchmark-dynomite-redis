@@ -25,6 +25,8 @@ public class App {
 		int requests = 1000000; // total number of requests == number of keys saved
 		
 		long startTime = 0;
+		
+		
 		long endTime = 0;
 		double writesPerSeconds = 0; 
 		double readsPerSeconds = 0;
@@ -42,7 +44,7 @@ public class App {
 		startTime = System.currentTimeMillis();
 		for (int i = 0; i < clients; i++) {
 			//client[i].hset(key);
-			client[i].set("key", "value");
+			client[i].set("key", "xxx");
 		}
 		
 		int count = 0;
@@ -83,6 +85,7 @@ public class App {
 		printStatisticsToFile(clients, jedis.info("Memory"), requests, writesPerSeconds, readsPerSeconds);
 		
 		jedis.close();
+		
 		
 		log.info("done");
 	}
